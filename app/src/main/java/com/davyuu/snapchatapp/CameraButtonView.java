@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.LinearInterpolator;
 import android.view.animation.Transformation;
+import android.widget.RelativeLayout;
 
 import static com.davyuu.snapchatapp.CameraButtonView.State.ACTIVE;
 import static com.davyuu.snapchatapp.CameraButtonView.State.ANIMATION_TO_ACTIVE;
@@ -22,6 +23,9 @@ public class CameraButtonView extends View {
 
     private final float START_ANGLE = -90f;
     private final float TOTAL_ANGLE = 360f;
+    private final float initialSize;
+    private final float finalSize;
+    private final float marginBottom;
     private float progress;
     private State currentState;
 
@@ -55,9 +59,11 @@ public class CameraButtonView extends View {
         translucentGray = ContextCompat.getColor(context, R.color.translucent_gray);
 
         strokeWidth = getResources().getDimension(R.dimen.camera_button_stroke_width);
-        size = getResources().getDimension(R.dimen.camera_button_size);
+        initialSize = getResources().getDimension(R.dimen.camera_button_initial_size);
+        finalSize = getResources().getDimension(R.dimen.camera_button_final_size);
+        marginBottom = getResources().getDimension(R.dimen.camera_button_margin_bottom);
         delta = getHalf(strokeWidth);
-        updateRect();
+        size = initialSize;
 
         //paints
         innerBackgroundPaint = new Paint();
@@ -99,6 +105,7 @@ public class CameraButtonView extends View {
             @Override
             protected void applyTransformation(float interpolatedTime, Transformation t) {
                 progress = interpolatedTime;
+                updateSize();
                 invalidate();
             }
         };
@@ -126,12 +133,16 @@ public class CameraButtonView extends View {
         animation.setInterpolator(new LinearInterpolator());
     }
 
-    private void updateRect() {
-        float left = 0 + delta;
-        float top = 0 + delta;
-        float right = size - delta;
-        float bottom = size - delta;
-        rect.set(left, top, right, bottom);
+    private void updateSize() {
+        if (currentState == ANIMATION_TO_ACTIVE) {
+            size = initialSize + (finalSize - initialSize) * progress;
+        } else if (currentState == ANIMATION_TO_INACTIVE) {
+            size = finalSize - (finalSize - initialSize) * progress;
+        }
+
+        getLayoutParams().width = (int) size;
+        getLayoutParams().height = (int) size;
+        requestLayout();
     }
 
     @Override
@@ -140,24 +151,22 @@ public class CameraButtonView extends View {
 
         float centerX = getHalf(size);
         float centerY = getHalf(size);
-        float innerRadius = centerX;
-        float outerRadius = centerX - delta;
+        float radius = getHalf(size) - strokeWidth;
+        float outerRadius = radius + delta;
+        float left = centerX - radius - delta;
+        float top = centerY - radius - delta;
+        float right = centerX + radius + delta;
+        float bottom = centerY + radius + delta;
+        rect.set(left, top, right, bottom);
 
-        canvas.drawCircle(centerX, centerY, innerRadius, innerBackgroundPaint);
+        canvas.drawCircle(centerX, centerY, radius, innerBackgroundPaint);
         canvas.drawCircle(centerX, centerY, outerRadius, outerStrokePaint);
-
+        float currentAngle = TOTAL_ANGLE * progress;
         if (currentState == ANIMATION_TO_ACTIVE) {
-            float currentAngle = TOTAL_ANGLE * progress;
             canvas.drawArc(rect, START_ANGLE, currentAngle, false, animationStrokePaint);
         } else if (currentState == ANIMATION_TO_INACTIVE) {
-            float currentAngle = -TOTAL_ANGLE * progress;
-            canvas.drawArc(rect, START_ANGLE, currentAngle, false, animationStrokePaint);
+            canvas.drawArc(rect, START_ANGLE, -currentAngle, false, animationStrokePaint);
         }
-    }
-
-    private void updateSize(float newSize) {
-        size = newSize;
-        updateRect();
     }
 
     public void setActive() {
